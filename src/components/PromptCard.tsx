@@ -13,7 +13,7 @@ const PromptCard = ({ prompt }: PromptCardProps) => {
   return (
     <div className="h-[320px] w-full flex items-center justify-center">
       <PinContainer title="Try Prompt" href={`/playground?id=${prompt.id}`}>
-        <div className="flex flex-col p-4 tracking-tight text-slate-100/90 w-[280px] h-[240px] bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-md border border-slate-600/40 rounded-xl shadow-xl">
+        <div className="flex flex-col p-5 tracking-tight text-slate-100/90 w-[420px] h-[280px] bg-gradient-to-br from-gray-900/95 to-black/95 backdrop-blur-md border border-gray-700/40 rounded-xl shadow-xl">
           {/* Header with Category Badge */}
           <div className="flex items-center justify-between mb-3">
             <Badge variant="secondary" className="bg-blue-500/20 text-blue-300 border-blue-400/30 text-xs px-2 py-0.5">
@@ -32,27 +32,27 @@ const PromptCard = ({ prompt }: PromptCardProps) => {
           </div>
 
           {/* Title */}
-          <h3 className="text-lg font-bold text-slate-100 mb-2 leading-tight">
+          <h3 className="text-lg font-bold text-slate-100 mb-3 leading-tight">
             {prompt.title}
           </h3>
           
           {/* Description */}
-          <p className="text-xs text-slate-300 leading-relaxed mb-3 flex-1 line-clamp-2">
+          <p className="text-sm text-slate-300 leading-relaxed mb-4 flex-1 line-clamp-3">
             {prompt.description}
           </p>
 
           {/* Tags */}
-          <div className="flex flex-wrap gap-1 mb-3">
+          <div className="flex flex-wrap gap-2 mb-4">
             {prompt.tags.slice(0, 2).map((tag, index) => (
               <span 
                 key={index}
-                className="px-2 py-0.5 text-xs bg-slate-700/60 text-slate-300 rounded-full border border-slate-600/40"
+                className="px-2 py-1 text-xs bg-gray-800/60 text-slate-300 rounded-full border border-gray-600/40"
               >
                 #{tag}
               </span>
             ))}
             {prompt.tags.length > 2 && (
-              <span className="px-2 py-0.5 text-xs text-slate-400">
+              <span className="px-2 py-1 text-xs text-slate-400">
                 +{prompt.tags.length - 2}
               </span>
             )}
