@@ -12,7 +12,7 @@ interface PromptCardProps {
 const PromptCard = ({ prompt }: PromptCardProps) => {
   return (
     <div className="h-[320px] w-full flex items-center justify-center">
-      <PinContainer title="Try Prompt" href={`/playground?id=${prompt.id}`}>
+      <PinContainer title="Try Prompt" href={`/playground/${prompt.id}`}>
         <div className="flex flex-col p-5 tracking-tight text-slate-100/90 w-[420px] h-[280px] bg-gradient-to-br from-gray-900/95 to-black/95 backdrop-blur-md border border-gray-700/40 rounded-xl shadow-xl">
           {/* Header with Category Badge */}
           <div className="flex items-center justify-between mb-3">

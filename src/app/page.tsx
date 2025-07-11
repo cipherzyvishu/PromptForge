@@ -7,7 +7,7 @@ export default function Home() {
       actions={[
         {
           label: "Browse Prompts",
-          href: "#",
+          href: "/explore",
           variant: "outline"
         },
         {

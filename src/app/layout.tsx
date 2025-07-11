@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: "Explore, build & launch AI prompts beautifully. Browse tested prompts, try them live, no guesswork.",
 };
 
-import Navigation from "@/components/Navigation";
+// import Navigation from "@/components/Navigation";
 
 export default function RootLayout({
   children,
