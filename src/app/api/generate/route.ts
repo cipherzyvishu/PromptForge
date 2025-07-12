@@ -54,9 +54,10 @@ export async function POST(req: NextRequest) {
     const text = data?.choices?.[0]?.message?.content || '';
 
     return NextResponse.json({ text });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Generate API error:', error);
-    return NextResponse.json({ error: error.message || 'Server Error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Server Error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
