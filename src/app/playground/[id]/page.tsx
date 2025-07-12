@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Play, Copy, Heart, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Play, Copy, Heart, TrendingUp, Sparkles, AlertCircle, Zap } from 'lucide-react';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 export default function PlaygroundPage() {
   const params = useParams();
@@ -19,8 +20,12 @@ export default function PlaygroundPage() {
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [generatedPrompt, setGeneratedPrompt] = useState<string>('');
+  const [aiResponse, setAiResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [showAiResponse, setShowAiResponse] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const foundPrompt = mockPrompts.find(p => p.id === id);
@@ -46,21 +51,70 @@ export default function PlaygroundPage() {
     if (!prompt) return;
 
     setIsLoading(true);
+    setError(null);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      let result = prompt.template;
+      
+      // Replace variables in template
+      prompt.variables.forEach(variable => {
+        const value = variables[variable.name] || `{${variable.name}}`;
+        result = result.replace(new RegExp(`{${variable.name}}`, 'g'), value);
+      });
+      
+      setGeneratedPrompt(result);
+      setShowResult(true);
+    } catch (err) {
+      console.error('Error generating prompt:', err);
+      toast.error('Failed to generate prompt');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const generateAIResponse = async () => {
+    if (!generatedPrompt) {
+      toast.error('Please generate a prompt first');
+      return;
+    }
     
-    let result = prompt.template;
+    setIsGenerating(true);
+    setError(null);
+    setShowAiResponse(false);
     
-    // Replace variables in template
-    prompt.variables.forEach(variable => {
-      const value = variables[variable.name] || `{${variable.name}}`;
-      result = result.replace(new RegExp(`{${variable.name}}`, 'g'), value);
-    });
-    
-    setGeneratedPrompt(result);
-    setShowResult(true);
-    setIsLoading(false);
+    try {
+      // Call the API
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          prompt: generatedPrompt,
+          model: 'mistralai/mixtral-8x7b-instruct' // default model
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setAiResponse(data.text || 'No response received');
+      setShowAiResponse(true);
+      toast.success('Response generated successfully!');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate response';
+      setError(errorMessage);
+      toast.error(`Error: ${errorMessage}`);
+      console.error('Error generating AI response:', err);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const copyToClipboard = () => {
@@ -257,6 +311,99 @@ export default function PlaygroundPage() {
               </AnimatePresence>
             </Card>
           </div>
+          
+          {/* AI Response Section */}
+          {showResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <Card className="p-6 bg-black/40 backdrop-blur-sm border-white/20">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-purple-400" />
+                    AI Response
+                  </h2>
+                </div>
+                
+                <Button
+                  onClick={generateAIResponse}
+                  disabled={!showResult || isGenerating}
+                  className="w-full mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                >
+                  {isGenerating ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                    />
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate with AI
+                    </>
+                  )}
+                </Button>
+                
+                <AnimatePresence mode="wait">
+                  {showAiResponse ? (
+                    <motion.div
+                      key="ai-result"
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                      transition={{ duration: 0.3 }}
+                      className="space-y-4"
+                    >
+                      <Textarea
+                        value={aiResponse}
+                        readOnly
+                        className="min-h-[240px] bg-black/20 border-white/20 text-white resize-none"
+                      />
+                      <Button
+                        onClick={() => navigator.clipboard.writeText(aiResponse)}
+                        variant="outline"
+                        size="sm"
+                        className="border-white/20 text-white hover:bg-white/10"
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copy Response
+                      </Button>
+                    </motion.div>
+                  ) : error ? (
+                    <motion.div
+                      key="error"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="p-4 bg-red-900/30 border border-red-500/50 rounded-md text-red-200"
+                    >
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h3 className="font-medium mb-1">Error generating response</h3>
+                          <p className="text-sm opacity-90">{error}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="ai-placeholder"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="min-h-[120px] flex items-center justify-center border-2 border-dashed border-white/20 rounded-md"
+                    >
+                      <p className="text-gray-500 text-center">
+                        Click &quot;Generate with AI&quot; to get an AI-powered response based on your prompt.
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Card>
+            </motion.div>
+          )}
 
           {/* Template Preview */}
           <Card className="p-6 bg-black/40 backdrop-blur-sm border-white/20">
