@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +19,6 @@ export const metadata: Metadata = {
   description: "Explore, build & launch AI prompts beautifully. Browse tested prompts, try them live, no guesswork.",
 };
 
-// import Navigation from "@/components/Navigation";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,8 +29,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* <Navigation /> */}
-        {children}
+        <AuthProvider>
+          <Toaster 
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: '#1a1a1a',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              },
+            }}
+          />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

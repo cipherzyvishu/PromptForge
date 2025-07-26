@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,56 +9,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    // Default model if not specified
-    const selectedModel = model || 'openai/gpt-3.5-turbo';
-    
-    // Prepare system prompt to enhance responses
-    const systemPrompt = "You are a helpful AI assistant that provides clear, concise, and accurate responses.";
-    
-    console.log(`Generating response using model: ${selectedModel}`);
-    
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-        'X-Title': 'PromptForge App',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        // Add some formatting parameters
-        temperature: 0.7,
-        max_tokens: 2048,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('OpenRouter API error:', errorData);
+    // Check if Gemini API key is configured
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({ 
-        error: errorData.error?.message || `API Error: ${response.status} ${response.statusText}` 
-      }, { status: response.status });
+        error: 'Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables.' 
+      }, { status: 500 });
     }
 
-    const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content || '';
+    // Initialize Gemini AI
+    const genAI = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY
+    });
+    
+    // Select model (default to gemini-1.5-flash for better performance/cost)
+    const selectedModel = model || 'gemini-2.5-flash-lite';
+    
+    console.log(`Generating response using Gemini model: ${selectedModel}`);
+    
+    // Generate response using the correct API structure
+    const result = await genAI.models.generateContent({
+      model: selectedModel,
+      contents: [{ parts: [{ text: prompt }] }]
+    });
+    
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      return NextResponse.json({ error: 'No response generated from Gemini' }, { status: 500 });
+    }
 
     return NextResponse.json({ text });
   } catch (error: unknown) {
-    console.error('Generate API error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Server Error';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    console.error('Gemini API error:', error);
+    
+    // Handle specific Gemini API errors
+    if (error instanceof Error) {
+      // Check for common Gemini API error patterns
+      if (error.message.includes('API_KEY_INVALID')) {
+        return NextResponse.json({ 
+          error: 'Invalid Gemini API key. Please check your GEMINI_API_KEY environment variable.' 
+        }, { status: 401 });
+      }
+      if (error.message.includes('QUOTA_EXCEEDED')) {
+        return NextResponse.json({ 
+          error: 'Gemini API quota exceeded. Please check your usage limits.' 
+        }, { status: 429 });
+      }
+      if (error.message.includes('SAFETY')) {
+        return NextResponse.json({ 
+          error: 'Content blocked by Gemini safety filters. Please try a different prompt.' 
+        }, { status: 400 });
+      }
+      
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    
+    return NextResponse.json({ error: 'Unknown error occurred' }, { status: 500 });
   }
 }
 

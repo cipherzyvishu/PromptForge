@@ -1,461 +1,260 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Plus, X, Save, Eye, Sparkles } from "lucide-react";
-
-interface Variable {
-  id: string;
-  name: string;
-  placeholder: string;
-  required: boolean;
-}
-
-interface PromptTemplate {
-  title: string;
-  description: string;
-  template: string;
-  variables: Variable[];
-  category: string;
-  tags: string[];
-}
+import { Save, Sparkles, LogIn, Zap, ArrowRight } from "lucide-react";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { promptService } from "@/lib/services/promptService";
+import Navigation from "@/components/Navigation";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 export default function BuilderPage() {
-  const [promptTemplate, setPromptTemplate] = useState<PromptTemplate>({
-    title: "",
-    description: "",
-    template: "",
-    variables: [],
-    category: "",
-    tags: []
-  });
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [title, setTitle] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
-  const [newVariableName, setNewVariableName] = useState("");
-  const [newVariablePlaceholder, setNewVariablePlaceholder] = useState("");
-  const [newTag, setNewTag] = useState("");
-  const [previewKey, setPreviewKey] = useState(0);
-  const [showToast, setShowToast] = useState(false);
-
-  // Load from localStorage on component mount
-  useEffect(() => {
-    const saved = localStorage.getItem("promptTemplate");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setPromptTemplate(parsed);
-        // Initialize variable values
-        const values: Record<string, string> = {};
-        parsed.variables.forEach((variable: Variable) => {
-          values[variable.name] = "";
-        });
-        setVariableValues(values);
-      } catch (error) {
-        console.error("Failed to load saved template:", error);
-      }
+  const savePrompt = async () => {
+    if (!user) {
+      toast.error('Please sign in to save prompts');
+      return;
     }
-  }, []);
 
-  // Auto-save to localStorage whenever template changes
-  useEffect(() => {
-    if (promptTemplate.title || promptTemplate.template) {
-      localStorage.setItem("promptTemplate", JSON.stringify(promptTemplate));
+    if (!prompt.trim()) {
+      toast.error('Please enter a prompt');
+      return;
     }
-  }, [promptTemplate]);
 
-  // Update preview when template or variables change
-  useEffect(() => {
-    setPreviewKey(prev => prev + 1);
-  }, [promptTemplate.template, variableValues]);
-
-  const addVariable = () => {
-    if (newVariableName.trim()) {
-      const variable: Variable = {
-        id: Date.now().toString(),
-        name: newVariableName.trim(),
-        placeholder: newVariablePlaceholder.trim() || `Enter ${newVariableName}`,
-        required: true
+    setSaving(true);
+    try {
+      const promptData = {
+        user_id: user.id,
+        title: title.trim() || 'Untitled Prompt', // Provide fallback instead of null
+        prompt: prompt.trim(),
+        description: 'AI prompt created with PromptForge', // Provide fallback
+        category: 'general', // Let database auto-categorize
+        tags: [],
+        likes: 0,
+        usage_count: 0
       };
+
+      const savedPrompt = await promptService.createPrompt(promptData);
       
-      setPromptTemplate(prev => ({
-        ...prev,
-        variables: [...prev.variables, variable]
-      }));
-      
-      setVariableValues(prev => ({
-        ...prev,
-        [variable.name]: ""
-      }));
-      
-      setNewVariableName("");
-      setNewVariablePlaceholder("");
+      if (savedPrompt) {
+        toast.success('Prompt saved successfully!');
+        // Clear the form
+        setTitle("");
+        setPrompt("");
+        // Redirect to the saved prompt
+        router.push(`/playground/${savedPrompt.id}`);
+      }
+    } catch (error: unknown) {
+      console.error('Error saving prompt:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save prompt';
+      toast.error(errorMessage);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const removeVariable = (variableId: string) => {
-    const variable = promptTemplate.variables.find(v => v.id === variableId);
-    if (variable) {
-      setPromptTemplate(prev => ({
-        ...prev,
-        variables: prev.variables.filter(v => v.id !== variableId)
-      }));
-      
-      setVariableValues(prev => {
-        const newValues = { ...prev };
-        delete newValues[variable.name];
-        return newValues;
-      });
+  const testPrompt = () => {
+    if (!prompt.trim()) {
+      toast.error('Please enter a prompt to test');
+      return;
     }
-  };
-
-  const addTag = () => {
-    if (newTag.trim() && !promptTemplate.tags.includes(newTag.trim())) {
-      setPromptTemplate(prev => ({
-        ...prev,
-        tags: [...prev.tags, newTag.trim()]
-      }));
-      setNewTag("");
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setPromptTemplate(prev => ({
-      ...prev,
-      tags: prev.tags.filter(t => t !== tag)
-    }));
-  };
-
-  const generatePreview = () => {
-    let preview = promptTemplate.template;
     
-    // Replace variables in the template
-    promptTemplate.variables.forEach(variable => {
-      const value = variableValues[variable.name] || `{${variable.name}}`;
-      const regex = new RegExp(`\\{${variable.name}\\}`, 'g');
-      preview = preview.replace(regex, value);
-    });
+    // Save to localStorage for testing without account
+    const testData = {
+      title: title || 'Untitled Prompt',
+      prompt: prompt,
+      category: 'general',
+      tags: [],
+      isTest: true
+    };
+    localStorage.setItem('testPrompt', JSON.stringify(testData));
     
-    return preview;
-  };
-
-  const saveTemplate = () => {
-    // Save to localStorage (already happening via useEffect)
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+    // Redirect to a test playground
+    router.push('/playground/test');
   };
 
   return (
-    <div className="min-h-screen bg-black">
-      {/* Background Effects */}
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-cyan-900/20" />
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/10 via-transparent to-transparent" />
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
+      <Navigation />
       
-      <div className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-8 text-center"
         >
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-2">
-            <Sparkles className="h-8 w-8 text-purple-400" />
-            Prompt Builder
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 flex items-center justify-center gap-3">
+            <Sparkles className="h-8 w-8 sm:h-10 sm:w-10 text-purple-400" />
+            Quick Prompt Builder
           </h1>
-          <p className="text-gray-400">Create and customize AI prompt templates with dynamic variables</p>
+          <p className="text-lg sm:text-xl text-gray-300 mb-6 px-4">
+            Create and save your AI prompts in seconds
+          </p>
+          
+          {!user && !authLoading && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              className="max-w-md mx-auto p-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-lg backdrop-blur-sm"
+            >
+              <div className="flex items-center gap-2 text-blue-200 justify-center">
+                <LogIn className="h-5 w-5" />
+                <span className="text-sm">Sign in to save prompts permanently!</span>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Left Column - Configuration */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="space-y-6"
-          >
-            {/* Basic Info */}
-            <Card className="bg-gray-900/50 border-gray-700 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-white">Template Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 block">Title</label>
-                  <Input
-                    value={promptTemplate.title}
-                    onChange={(e) => setPromptTemplate(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Enter prompt title..."
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 block">Description</label>
-                  <Textarea
-                    value={promptTemplate.description}
-                    onChange={(e) => setPromptTemplate(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe what this prompt does..."
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 min-h-[80px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 block">Category</label>
-                  <Input
-                    value={promptTemplate.category}
-                    onChange={(e) => setPromptTemplate(prev => ({ ...prev, category: e.target.value }))}
-                    placeholder="e.g., Writing, Coding, Creative..."
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Template */}
-            <Card className="bg-gray-900/50 border-gray-700 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-white">Prompt Template</CardTitle>
-                <p className="text-sm text-gray-400">Use {`{variableName}`} to insert dynamic variables</p>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={promptTemplate.template}
-                  onChange={(e) => setPromptTemplate(prev => ({ ...prev, template: e.target.value }))}
-                  placeholder="Write your prompt template here... Use {variableName} for dynamic content."
-                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 min-h-[200px] font-mono text-sm"
+        {/* Main Form */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="bg-black/40 backdrop-blur-sm border-white/20 shadow-2xl">
+            <CardHeader className="text-center pb-6">
+              <CardTitle className="text-2xl text-white">
+                What would you like AI to help you with?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Optional Title */}
+              <div>
+                <label className="text-sm font-medium text-gray-300 mb-2 block">
+                  Title <span className="text-gray-500">(optional)</span>
+                </label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Give your prompt a name..."
+                  className="bg-black/20 border-white/20 text-white placeholder-gray-400 focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50"
                 />
-              </CardContent>
-            </Card>
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to auto-generate from your prompt
+                </p>
+              </div>
+              
+              {/* Prompt Content - Main Field */}
+              <div>
+                <label className="text-lg font-medium text-white mb-3 block">
+                  Your Prompt
+                </label>
+                <Textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder={`Write your AI prompt here... 
 
-            {/* Variables */}
-            <Card className="bg-gray-900/50 border-gray-700 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-white">Variables</CardTitle>
-                <p className="text-sm text-gray-400">Define dynamic variables for your template</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Add Variable */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <Input
-                    value={newVariableName}
-                    onChange={(e) => setNewVariableName(e.target.value)}
-                    placeholder="Variable name"
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
-                    onKeyDown={(e) => e.key === 'Enter' && addVariable()}
-                  />
-                  <Input
-                    value={newVariablePlaceholder}
-                    onChange={(e) => setNewVariablePlaceholder(e.target.value)}
-                    placeholder="Placeholder text"
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
-                    onKeyDown={(e) => e.key === 'Enter' && addVariable()}
-                  />
-                  <Button onClick={addVariable} className="bg-purple-600 hover:bg-purple-700">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add
-                  </Button>
-                </div>
+For example:
+• Write a professional email to...
+• Explain the concept of...
+• Create a marketing strategy for...
+• Help me debug this code...
+• Generate creative ideas for...`}
+                  className="bg-black/20 border-white/20 text-white placeholder-gray-400 min-h-[200px] text-base leading-relaxed focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50"
+                />
+                <p className="text-sm text-gray-400 mt-2">
+                  Character count: {prompt.length}
+                </p>
+              </div>
 
-                {/* Variable List */}
-                <div className="space-y-2">
-                  <AnimatePresence>
-                    {promptTemplate.variables.map((variable) => (
-                      <motion.div
-                        key={variable.id}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="flex items-center justify-between bg-gray-800 p-3 rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <span className="text-white font-medium">{variable.name}</span>
-                          <p className="text-sm text-gray-400">{variable.placeholder}</p>
-                        </div>
-                        <Button
-                          onClick={() => removeVariable(variable.id)}
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-
-                {/* Variable Values for Preview */}
-                {promptTemplate.variables.length > 0 && (
-                  <div className="space-y-3 pt-4 border-t border-gray-700">
-                    <h4 className="text-sm font-medium text-gray-300">Preview Values</h4>
-                    {promptTemplate.variables.map((variable) => (
-                      <div key={variable.id}>
-                        <label className="text-xs text-gray-400 mb-1 block">{variable.name}</label>
-                        <Input
-                          value={variableValues[variable.name] || ""}
-                          onChange={(e) => setVariableValues(prev => ({
-                            ...prev,
-                            [variable.name]: e.target.value
-                          }))}
-                          placeholder={variable.placeholder}
-                          className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 text-sm"
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                {user ? (
+                  <>
+                    <Button 
+                      onClick={savePrompt}
+                      disabled={saving || !prompt.trim()}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white h-12 text-base font-medium"
+                    >
+                      {saving ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-2"
                         />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Tags */}
-            <Card className="bg-gray-900/50 border-gray-700 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-white">Tags</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    placeholder="Add a tag"
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
-                    onKeyDown={(e) => e.key === 'Enter' && addTag()}
-                  />
-                  <Button onClick={addTag} className="bg-purple-600 hover:bg-purple-700">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  <AnimatePresence>
-                    {promptTemplate.tags.map((tag) => (
-                      <motion.div
-                        key={tag}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                      >
-                        <Badge
-                          variant="secondary"
-                          className="bg-purple-900/50 text-purple-300 border-purple-700 cursor-pointer hover:bg-purple-900/70"
-                          onClick={() => removeTag(tag)}
-                        >
-                          {tag}
-                          <X className="h-3 w-3 ml-1" />
-                        </Badge>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Save Button */}
-            <Button 
-              onClick={saveTemplate}
-              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-              size="lg"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save Template
-            </Button>
-          </motion.div>
-
-          {/* Right Column - Live Preview */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-6"
-          >
-            <Card className="bg-gray-900/50 border-gray-700 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Live Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={previewKey}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                    className="space-y-4"
+                      ) : (
+                        <Save className="w-5 h-5 mr-2" />
+                      )}
+                      {saving ? 'Saving...' : 'Save & Test Prompt'}
+                    </Button>
+                    <Button 
+                      onClick={testPrompt}
+                      disabled={!prompt.trim()}
+                      variant="outline"
+                      className="border-white/20 text-white hover:bg-white/10 h-12 text-base"
+                    >
+                      <Zap className="w-5 h-5 mr-2" />
+                      Quick Test
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    onClick={testPrompt}
+                    disabled={!prompt.trim()}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white h-12 text-base font-medium"
                   >
-                    {promptTemplate.title && (
-                      <div>
-                        <h3 className="text-xl font-semibold text-white">{promptTemplate.title}</h3>
-                        {promptTemplate.description && (
-                          <p className="text-gray-400 text-sm mt-1">{promptTemplate.description}</p>
-                        )}
-                      </div>
-                    )}
+                    <Zap className="w-5 h-5 mr-2" />
+                    Test This Prompt
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                )}
+              </div>
 
-                    {promptTemplate.category && (
-                      <Badge variant="outline" className="border-purple-500 text-purple-300">
-                        {promptTemplate.category}
-                      </Badge>
-                    )}
+              {/* Help Text */}
+              <div className="text-center pt-4 border-t border-white/10">
+                <p className="text-sm text-gray-400">
+                  {user 
+                    ? "Your prompt will be automatically categorized and tagged for easy discovery."
+                    : "Sign in to save your prompts permanently and share them with the community."
+                  }
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-                    {promptTemplate.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {promptTemplate.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="bg-gray-800 text-gray-300 text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                      <h4 className="text-sm font-medium text-gray-300 mb-2">Generated Prompt</h4>
-                      <div className="text-white whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                        {generatePreview() || "Start typing your template to see the preview..."}
-                      </div>
-                    </div>
-
-                    {promptTemplate.variables.length > 0 && (
-                      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                        <h4 className="text-sm font-medium text-gray-300 mb-3">Variables Detected</h4>
-                        <div className="space-y-2">
-                          {promptTemplate.variables.map((variable) => (
-                            <div key={variable.id} className="flex justify-between items-center text-sm">
-                              <span className="text-purple-300">{`{${variable.name}}`}</span>
-                              <span className="text-gray-400">{variable.placeholder}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
+        {/* Features Preview */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-12 grid md:grid-cols-3 gap-6 text-center"
+        >
+          <div className="p-6 bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+            <Sparkles className="w-8 h-8 text-purple-400 mx-auto mb-3" />
+            <h3 className="text-white font-semibold mb-2">Auto-Categorized</h3>
+            <p className="text-gray-400 text-sm">
+              We automatically categorize your prompts based on content
+            </p>
+          </div>
+          <div className="p-6 bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+            <Zap className="w-8 h-8 text-blue-400 mx-auto mb-3" />
+            <h3 className="text-white font-semibold mb-2">Instant Testing</h3>
+            <p className="text-gray-400 text-sm">
+              Test your prompts immediately with AI generation
+            </p>
+          </div>
+          <div className="p-6 bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+            <Save className="w-8 h-8 text-green-400 mx-auto mb-3" />
+            <h3 className="text-white font-semibold mb-2">One-Click Save</h3>
+            <p className="text-gray-400 text-sm">
+              Save and share your prompts with just one click
+            </p>
+          </div>
+        </motion.div>
       </div>
-
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {showToast && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-6 right-6 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50"
-          >
-            <Save className="h-4 w-4" />
-            Template saved successfully!
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
