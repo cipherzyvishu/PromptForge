@@ -10,6 +10,7 @@ import { Save, Sparkles, LogIn, Zap, ArrowRight } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { promptService } from "@/lib/services/promptService";
 import Navigation from "@/components/Navigation";
+import { AuthModal } from "@/components/auth/AuthModal";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
@@ -19,15 +20,24 @@ export default function BuilderPage() {
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<"signin" | "signup">(
+    "signin"
+  );
+
+  const openAuthModal = (tab: "signin" | "signup") => {
+    setAuthModalTab(tab);
+    setShowAuthModal(true);
+  };
 
   const savePrompt = async () => {
     if (!user) {
-      toast.error('Please sign in to save prompts');
+      toast.error("Please sign in to save prompts");
       return;
     }
 
     if (!prompt.trim()) {
-      toast.error('Please enter a prompt');
+      toast.error("Please enter a prompt");
       return;
     }
 
@@ -35,19 +45,19 @@ export default function BuilderPage() {
     try {
       const promptData = {
         user_id: user.id,
-        title: title.trim() || 'Untitled Prompt', // Provide fallback instead of null
+        title: title.trim() || "Untitled Prompt", // Provide fallback instead of null
         prompt: prompt.trim(),
-        description: 'AI prompt created with PromptForge', // Provide fallback
-        category: 'general', // Let database auto-categorize
+        description: "AI prompt created with PromptForge", // Provide fallback
+        category: "general", // Let database auto-categorize
         tags: [],
         likes: 0,
-        usage_count: 0
+        usage_count: 0,
       };
 
       const savedPrompt = await promptService.createPrompt(promptData);
-      
+
       if (savedPrompt) {
-        toast.success('Prompt saved successfully!');
+        toast.success("Prompt saved successfully!");
         // Clear the form
         setTitle("");
         setPrompt("");
@@ -55,8 +65,9 @@ export default function BuilderPage() {
         router.push(`/playground/${savedPrompt.id}`);
       }
     } catch (error: unknown) {
-      console.error('Error saving prompt:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save prompt';
+      console.error("Error saving prompt:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to save prompt";
       toast.error(errorMessage);
     } finally {
       setSaving(false);
@@ -65,28 +76,28 @@ export default function BuilderPage() {
 
   const testPrompt = () => {
     if (!prompt.trim()) {
-      toast.error('Please enter a prompt to test');
+      toast.error("Please enter a prompt to test");
       return;
     }
-    
+
     // Save to localStorage for testing without account
     const testData = {
-      title: title || 'Untitled Prompt',
+      title: title || "Untitled Prompt",
       prompt: prompt,
-      category: 'general',
+      category: "general",
       tags: [],
-      isTest: true
+      isTest: true,
     };
-    localStorage.setItem('testPrompt', JSON.stringify(testData));
-    
+    localStorage.setItem("testPrompt", JSON.stringify(testData));
+
     // Redirect to a test playground
-    router.push('/playground/test');
+    router.push("/playground/test");
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
       <Navigation />
-      
+
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl">
         {/* Header */}
         <motion.div
@@ -101,18 +112,26 @@ export default function BuilderPage() {
           <p className="text-lg sm:text-xl text-gray-300 mb-6 px-4">
             Create and save your AI prompts in seconds
           </p>
-          
+
           {!user && !authLoading && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
-              className="max-w-md mx-auto p-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-lg backdrop-blur-sm"
+              className="max-w-md mx-auto"
             >
-              <div className="flex items-center gap-2 text-blue-200 justify-center">
-                <LogIn className="h-5 w-5" />
-                <span className="text-sm">Sign in to save prompts permanently!</span>
-              </div>
+              <Button
+                onClick={() => openAuthModal("signin")}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white p-4 rounded-lg backdrop-blur-sm border border-blue-500/30"
+              >
+                <div className="flex items-center gap-2 justify-center">
+                  <LogIn className="h-5 w-5" />
+                  <span className="text-sm font-medium">
+                    Sign in to save prompts permanently!
+                  </span>
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </Button>
             </motion.div>
           )}
         </motion.div>
@@ -145,7 +164,7 @@ export default function BuilderPage() {
                   Leave empty to auto-generate from your prompt
                 </p>
               </div>
-              
+
               {/* Prompt Content - Main Field */}
               <div>
                 <label className="text-lg font-medium text-white mb-3 block">
@@ -173,7 +192,7 @@ For example:
               <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 {user ? (
                   <>
-                    <Button 
+                    <Button
                       onClick={savePrompt}
                       disabled={saving || !prompt.trim()}
                       className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white h-12 text-base font-medium"
@@ -181,15 +200,19 @@ For example:
                       {saving ? (
                         <motion.div
                           animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            ease: "linear",
+                          }}
                           className="w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-2"
                         />
                       ) : (
                         <Save className="w-5 h-5 mr-2" />
                       )}
-                      {saving ? 'Saving...' : 'Save & Test Prompt'}
+                      {saving ? "Saving..." : "Save & Test Prompt"}
                     </Button>
-                    <Button 
+                    <Button
                       onClick={testPrompt}
                       disabled={!prompt.trim()}
                       variant="outline"
@@ -200,7 +223,7 @@ For example:
                     </Button>
                   </>
                 ) : (
-                  <Button 
+                  <Button
                     onClick={testPrompt}
                     disabled={!prompt.trim()}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white h-12 text-base font-medium"
@@ -215,10 +238,9 @@ For example:
               {/* Help Text */}
               <div className="text-center pt-4 border-t border-white/10">
                 <p className="text-sm text-gray-400">
-                  {user 
+                  {user
                     ? "Your prompt will be automatically categorized and tagged for easy discovery."
-                    : "Sign in to save your prompts permanently and share them with the community."
-                  }
+                    : "Sign in to save your prompts permanently and share them with the community."}
                 </p>
               </div>
             </CardContent>
@@ -255,6 +277,13 @@ For example:
           </div>
         </motion.div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        defaultTab={authModalTab}
+      />
     </div>
   );
 }

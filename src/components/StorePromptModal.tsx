@@ -1,15 +1,14 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/lib/auth/AuthProvider';
-import { promptService } from '@/lib/services/promptService';
-import toast from 'react-hot-toast';
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Save, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { promptService } from "@/lib/services/promptService";
+import toast from "react-hot-toast";
 
 interface StorePromptModalProps {
   isOpen: boolean;
@@ -17,96 +16,62 @@ interface StorePromptModalProps {
   onSuccess?: () => void;
 }
 
-export default function StorePromptModal({ isOpen, onClose, onSuccess }: StorePromptModalProps) {
+export default function StorePromptModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: StorePromptModalProps) {
   const { user } = useAuth();
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    prompt: '',
-    category: '',
-    tags: [] as string[],
-  });
-  const [tagInput, setTagInput] = useState('');
+  const [title, setTitle] = useState("");
+  const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Handle prompt change (simplified - no variable detection)
-  const handlePromptChange = (value: string) => {
-    setFormData(prev => ({ ...prev, prompt: value }));
-  };
-
-  // Form validation (simplified)
+  // Form validation
   const isFormValid = () => {
-    return formData.title.trim() && 
-           formData.prompt.trim() &&
-           formData.category.trim();
+    return prompt.trim().length > 0;
   };
 
-  // Save prompt to database (simplified - no variables)
+  // Save prompt to database
   const handleSave = async () => {
     if (!user) {
-      toast.error('Please sign in to save prompts');
+      toast.error("Please sign in to save prompts");
       return;
     }
 
     if (!isFormValid()) {
-      toast.error('Please fill in the title, prompt, and category fields');
+      toast.error("Please enter a prompt");
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       const promptData = {
         user_id: user.id,
-        title: formData.title,
-        description: formData.description || `Custom prompt: ${formData.title}`, 
-        prompt: formData.prompt,
-        category: formData.category,
-        tags: formData.tags.length > 0 ? formData.tags : ['custom'], 
+        title: title.trim() || "Untitled Prompt",
+        description: "AI prompt created with PromptForge",
+        prompt: prompt.trim(),
+        category: "general",
+        tags: [],
         likes: 0,
         usage_count: 0,
-        is_featured: false
+        is_featured: false,
       };
 
       await promptService.createPrompt(promptData);
-      toast.success('Prompt saved successfully!');
-      
+      toast.success("Prompt saved successfully!");
+
       // Reset form
-      setFormData({ title: '', description: '', prompt: '', category: '', tags: [] });
-      setTagInput('');
-      
+      setTitle("");
+      setPrompt("");
+
       onClose();
       onSuccess?.();
     } catch (error) {
-      console.error('Error saving prompt:', error);
-      toast.error('Failed to save prompt. Please try again.');
+      console.error("Error saving prompt:", error);
+      toast.error("Failed to save prompt. Please try again.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Add tag functionality
-  const addTag = () => {
-    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, tagInput.trim()]
-      }));
-      setTagInput('');
-    }
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
-    }));
-  };
-
-  const handleTagKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addTag();
     }
   };
 
@@ -119,7 +84,7 @@ export default function StorePromptModal({ isOpen, onClose, onSuccess }: StorePr
 
   // Handle ESC key
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       onClose();
     }
   };
@@ -127,7 +92,7 @@ export default function StorePromptModal({ isOpen, onClose, onSuccess }: StorePr
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
@@ -156,105 +121,43 @@ export default function StorePromptModal({ isOpen, onClose, onSuccess }: StorePr
           {/* Form Content */}
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
             <div className="space-y-6">
-              {/* Title */}
+              {/* Optional Title */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Title <span className="text-red-400">*</span>
+                  Title <span className="text-gray-500">(optional)</span>
                 </label>
                 <Input
-                  value={formData.title}
-                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Enter a descriptive title for your prompt"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Give your prompt a name..."
                   className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
                   maxLength={100}
                 />
-                <p className="text-xs text-gray-500 mt-1">{formData.title.length}/100 characters</p>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Description
-                </label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Describe what this prompt does and when to use it"
-                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 min-h-[80px]"
-                  maxLength={500}
-                />
-                <p className="text-xs text-gray-500 mt-1">{formData.description.length}/500 characters</p>
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Category <span className="text-red-400">*</span>
-                </label>
-                <Input
-                  value={formData.category}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                  placeholder="e.g., business, creative-writing, technical, education"
-                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
-                  maxLength={50}
-                />
-                <p className="text-xs text-gray-500 mt-1">Main category for your prompt</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to auto-generate from your prompt
+                </p>
               </div>
 
               {/* Prompt */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Prompt <span className="text-red-400">*</span>
+                <label className="block text-lg font-medium text-white mb-3">
+                  Your Prompt <span className="text-red-400">*</span>
                 </label>
                 <Textarea
-                  value={formData.prompt}
-                  onChange={(e) => handlePromptChange(e.target.value)}
-                  placeholder="Enter your complete prompt here. Make it specific and detailed.&#10;&#10;Example:&#10;Write a professional email to a client about a project update. Include project status, next milestones, and request feedback on the current progress."
-                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 min-h-[120px] font-mono text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Write a complete, ready-to-use prompt
-                </p>
-              </div>
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder={`Write your AI prompt here... 
 
-              {/* Tags */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Tags
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <Input
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyPress={handleTagKeyPress}
-                    placeholder="Add tags (e.g., writing, business, creative)"
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 flex-1"
-                  />
-                  <Button
-                    type="button"
-                    onClick={addTag}
-                    variant="outline"
-                    className="border-gray-600 text-white hover:bg-gray-700"
-                  >
-                    Add
-                  </Button>
-                </div>
-                {formData.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {formData.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="bg-blue-900/50 text-blue-300 border-blue-700 cursor-pointer"
-                        onClick={() => removeTag(tag)}
-                      >
-                        {tag} ×
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Click on tags to remove them
+For example:
+• Write a professional email to...
+• Explain the concept of...
+• Create a marketing strategy for...
+• Help me debug this code...
+• Generate creative ideas for...`}
+                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 min-h-[200px] text-base leading-relaxed"
+                />
+                <p className="text-sm text-gray-400 mt-2">
+                  Character count: {prompt.length}
                 </p>
               </div>
             </div>
@@ -263,9 +166,7 @@ export default function StorePromptModal({ isOpen, onClose, onSuccess }: StorePr
           {/* Footer */}
           <div className="flex items-center justify-between p-6 border-t border-gray-700 bg-gray-800/50">
             <div className="text-sm text-gray-400">
-              {!isFormValid() && (
-                <span>Please fill all required fields</span>
-              )}
+              {!isFormValid() && <span>Please enter a prompt</span>}
             </div>
             <div className="flex gap-3">
               <Button
@@ -279,7 +180,7 @@ export default function StorePromptModal({ isOpen, onClose, onSuccess }: StorePr
               <Button
                 onClick={handleSave}
                 disabled={!isFormValid() || isLoading}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white h-12 text-base font-medium"
               >
                 {isLoading ? (
                   <>
